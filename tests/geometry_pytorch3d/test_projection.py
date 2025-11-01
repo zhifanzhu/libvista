@@ -1,7 +1,7 @@
 import trimesh
 from PIL import Image
 import numpy as np
-from libzhifan.geometry import projection, SimpleMesh, CameraManager
+from libzhifan.geometry_pytorch3d import projection, SimpleMesh, CameraManager
 
 
 mesh_path = 'tests/data/P01_01_42273_right_hand.obj'

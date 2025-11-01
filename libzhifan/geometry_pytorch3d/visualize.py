@@ -7,7 +7,7 @@ from trimesh.transformations import rotation_matrix
 from trimesh.points import PointCloud
 from pytorch3d.structures import Meshes
 from libzhifan.numeric import numpize
-from libzhifan.geometry import SimpleMesh
+from libzhifan.geometry_pytorch3d import SimpleMesh
 
 
 _Rx = rotation_matrix(np.pi, [1, 0, 0])  # rotate pi around x-axis

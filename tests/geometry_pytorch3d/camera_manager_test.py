@@ -2,9 +2,9 @@ import unittest
 
 import numpy as np
 import torch
-from libzhifan.geometry import example_meshes
-from libzhifan.geometry import perspective_projection_by_camera
-from libzhifan.geometry import CameraManager, BatchCameraManager
+from libzhifan.geometry_pytorch3d import example_meshes
+from libzhifan.geometry_pytorch3d import perspective_projection_by_camera
+from libzhifan.geometry_pytorch3d import CameraManager, BatchCameraManager
 
 
 class CameraManagerTest(unittest.TestCase):
