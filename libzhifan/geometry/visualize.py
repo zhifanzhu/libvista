@@ -2,7 +2,6 @@ from functools import singledispatch
 import numpy as np
 from typing import Union
 import trimesh
-import torch
 from trimesh.scene import Scene
 from trimesh.transformations import rotation_matrix
 from trimesh.points import PointCloud
