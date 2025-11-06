@@ -1,126 +1,23 @@
-from typing import List, Tuple, Union
-
+""" The projection implementations using PyTorch3D """
+from typing import List, Union
+from numpy.typing import NDArray
 import numpy as np
-import torch
 import trimesh
-from libzhifan.numeric import numpize
+import torch
+
 from pytorch3d.renderer import (BlendParams, MeshRasterizer, MeshRenderer,
                                 PerspectiveCameras, PointLights,
                                 RasterizationSettings, SoftPhongShader,
                                 SoftSilhouetteShader, TexturesVertex)
 from pytorch3d.structures import Meshes, join_meshes_as_scene
 
-from . import coor_utils
+from ..numeric import numpize
+from .mesh import SimpleMesh, AnyMesh
 from .camera_manager import CameraManager
+from . import coor_utils_pytorch3d
 from .instance_id_rendering import InstanceIDRenderer
-from .mesh import SimpleMesh
-from .visualize_2d import draw_dots_image
-
-try:
-    import neural_renderer as nr
-    HAS_NR = True
-except ImportError:
-    HAS_NR = False
 
 
-"""
-Dealing with vertices projections, possibly using pytorch3d
-
-Pytorch3D has two Perspective Cameras:
-
-- pytorch3d.render.FovPerspectiveCameras(znear, zfar, ar, fov)
-
-- pytorch3d.render.PerspectiveCameras(focal_length, principal_point)
-    - or pytorch3d.render.PerspectiveCameras(K: (4,4))
-
-
-1. Coordinate System.
-
-Camera always looks at (0, 0, 1).
-
-a. pytorch3d / pytorch3d-NDC
-
-            ^ Y
-            |
-            |   / Z
-            |  /
-            | /
-    X <------
-
-    - this will be projected into:
-
-            ^ Y
-            |
-            |
-        <----
-        X
-
-b. OpenGL, Open3D, naive_implementation:
-
-            ^ Y              Y ^
-            |                  |  / Z
-            |                  | /
-            |                  |/
-            /------> X          ------> X
-           /                     (NDC)
-          /
-       Z /
-
-    - this will be projected into:
-
-            ----> X
-            |
-            |
-            v Y
-
-c. OpenCV, neural_renderer:
-
-             / Z
-            /
-           /
-          /
-         ----------> X
-         |
-         |
-         |
-         v Y
-
-
-2. Projection transforms.
-
-In pytorch3d, the transforms are as follows:
-model -> view -> ndc -> screen
-In pinhole camera model, i.e. with simple 3x3 matrix K, the transforms is:
-model -> screen
-
-
-3. Rendering configuration
-
-To render a cube [-1, 1]^3, on a W x W = (200, 200) image
-
-naive method:
-    - fx=fy=cx=cy=W/2, image_size=(W, W)
-
-pytorch3d in_ndc=True:
-    - fx=fy=1, cx=cy=0, image_size=(W, W)
-
-pytorch3d in_ndc=False:
-    - fx=fy=cx=cy=W/2, image_size=(W, W)
-
-neural_renderer.git:
-    - fx=fy=cx=cy=W/2, image_size=W, orig_size=W
-    or,
-    - fx=fy=cx=cy=1/2, image_size=W, orig_size=1
-
-`naive` == `pytorch3d in_ndc=False` == `neural_renderer w/ orig_size=image_size`
-
-
-Ref:
-[1] https://medium.com/maochinn/%E7%AD%86%E8%A8%98-camera-dee562610e71https://medium.com/maochinn/%E7%AD%86%E8%A8%98-camera-dee562610e71
-
-"""
-
-AnyMesh = Union[SimpleMesh, Meshes, List[Meshes], List[SimpleMesh]]
 
 _R = torch.eye(3)
 _T = torch.zeros(3)
@@ -138,142 +35,6 @@ def _to_th_mesh(m: AnyMesh) -> Meshes:
         raise ValueError(f"type {type(m)} not understood.")
 
 
-def perspective_projection(mesh_data: AnyMesh,
-                           cam_f: Tuple[float],
-                           cam_p: Tuple[float],
-                           method=dict(
-                               name='pytorch3d',
-                               ),
-                           image=None,
-                           img_h=None,
-                           img_w=None,
-                           device='cuda',
-                           **kwargs) -> np.ndarray:
-    """ Project verts/mesh by Perspective camera.
-
-    Args:
-        mesh_data: one of
-            - SimpleMesh
-            - pytorch3d.Meshes
-            - list of SimpleMeshes
-            - list of pytorch3d.Meshes
-        cam_f: focal length (2,)
-        cam_p: principal points (2,)
-        method: dict
-            - name: one of {'naive', 'pytorch3d', 'pytorch3d_instance', 'neural_renderer'}.
-
-            Other fields contains the parameters of that function
-
-            Camera by default located at (0, 0, 0) and looks following z-axis.
-
-        in_ndc: bool
-        R: (3, 3) camera extrinsic matrix.
-        T: (3,) camera extrinsic matrix.
-        image: (H, W, 3), if `image` is None,
-            will render a image with size (img_h, img_w).
-
-    Returns:
-        (H, W, 3) image
-    """
-    method_name = method.pop('name')
-    if image is None:
-        assert img_h is not None and img_w is not None
-        image = np.ones([img_h, img_w, 3], dtype=np.uint8) * 255
-
-    if method_name == 'naive':
-        return naive_perspective_projection(
-            mesh_data=mesh_data, cam_f=cam_f, cam_p=cam_p, image=image,
-            **method,
-        )
-    elif method_name == 'pytorch3d':
-        image = torch.as_tensor(
-            image, dtype=torch.float32) / 255.
-        img = pytorch3d_perspective_projection(
-            mesh_data=mesh_data, cam_f=cam_f, cam_p=cam_p,
-            **method, image=image, device=device, **kwargs
-        )
-        return img
-    elif method_name == 'pytorch3d_silhouette':
-        image = torch.as_tensor(
-            image, dtype=torch.float32) / 255.
-        img = pth3d_silhouette_perspective_projection(
-            mesh_data=mesh_data, cam_f=cam_f, cam_p=cam_p,
-            **method, image=image)
-        return img
-    elif method_name == 'pytorch3d_instance':
-        blur_radius = method.pop('blur_radius', 1e-7)
-        img = pth3d_instance_perspective_projection(
-            meshes=mesh_data, cam_f=cam_f, cam_p=cam_p,
-            **method, img_h=img_h, img_w=img_w, blur_radius=blur_radius)
-        return img
-    elif method_name == 'neural_renderer' or method_name == 'nr':
-        assert HAS_NR
-        img = neural_renderer_perspective_projection(
-            mesh_data=mesh_data, cam_f=cam_f, cam_p=cam_p,
-            **method, image=image
-        )
-        return img
-    else:
-        raise ValueError(f"method_name: {method_name} not understood.")
-
-
-def perspective_projection_by_camera(mesh_data: AnyMesh,
-                                     camera: CameraManager,
-                                     method=dict(
-                                         name='pytorch3d',
-                                         in_ndc=False,
-                                     ),
-                                     image=None,
-                                     device='cuda',
-                                     **kwargs) -> np.ndarray:
-    """
-    Similar to perspective_projection() but with CameraManager as argument.
-    """
-    fx, fy, cx, cy, img_h, img_w = camera.unpack()
-    assert method.get('in_ndc', False) == False, "in_ndc Must be False for CamaraManager"
-    img = perspective_projection(
-        mesh_data,
-        cam_f=(fx, fy),
-        cam_p=(cx, cy),
-        method=method.copy(),  # Avoid being optimized by python
-        image=image,
-        img_h=int(img_h),
-        img_w=int(img_w),
-        device=device,
-        **kwargs,
-    )
-    return img
-
-
-def naive_perspective_projection(mesh_data: AnyMesh,
-                                 cam_f,
-                                 cam_p,
-                                 image,
-                                 color='green',
-                                 thickness=4,
-                                 **kwargs):
-    """
-    Given image size, naive calculation of K should be
-
-    fx = cx = img_w/2, fy = cy = img_h/2
-
-    """
-    if isinstance(mesh_data, list):
-        raise NotImplementedError
-    elif isinstance(mesh_data, Meshes):
-        raise NotImplementedError
-
-    verts = mesh_data.vertices
-    fx, fy = cam_f
-    cx, cy = cam_p
-    fx, fy, cx, cy = map(float, (fx, fy, cx, cy))
-    points = coor_utils.project_3d_2d(
-        verts.T, fx=fx, fy=fy, cx=cx, cy=cy).T
-    img = draw_dots_image(
-        image, points, color=color, thickness=thickness)
-    return img
-
-
 def pytorch3d_perspective_projection(mesh_data: AnyMesh,
                                      cam_f,
                                      cam_p,
@@ -284,7 +45,7 @@ def pytorch3d_perspective_projection(mesh_data: AnyMesh,
                                      image=None,
                                      flip_canvas_xy=False,
                                      device='cuda',
-                                     **kwargs) -> np.ndarray:
+                                     **kwargs) -> NDArray[np.uint8]:
     """
     TODO
     flip issue: https://github.com/facebookresearch/pytorch3d/issues/78
@@ -294,7 +55,7 @@ def pytorch3d_perspective_projection(mesh_data: AnyMesh,
         cam_f: Tuple, (2,)
         cam_p: Tuple, (2,)
         R: (3, 3)
-        pT: (3,)
+        T: (3,)
 
         coor_sys: str, one of {'pytorch3d', 'neural_renderer'/'nr'}
             Set the input coordinate sysem.
@@ -319,7 +80,7 @@ def pytorch3d_perspective_projection(mesh_data: AnyMesh,
             [0, -1, 0, 0],
             [0, 0, 1, 0],
             [0, 0, 0, 1]]], dtype=torch.float32, device=device)
-        _mesh_data = coor_utils.torch3d_apply_transform_matrix(
+        _mesh_data = coor_utils_pytorch3d.torch3d_apply_transform_matrix(
             _mesh_data, _Rz_mat)
     else:
         raise ValueError(f"coor_sys '{coor_sys}' not understood.")
@@ -360,7 +121,8 @@ def pytorch3d_perspective_projection(mesh_data: AnyMesh,
         out = numpize(out.squeeze_(0))
     else:
         out = numpize(rendered.squeeze_(0))[..., :3]
-    return out
+    out_img = (out * 255).astype(np.uint8)
+    return out_img
 
 
 def pth3d_silhouette_perspective_projection(mesh_data: AnyMesh,
@@ -399,7 +161,7 @@ def pth3d_silhouette_perspective_projection(mesh_data: AnyMesh,
             [0, -1, 0, 0],
             [0, 0, 1, 0],
             [0, 0, 0, 1]]], dtype=torch.float32, device=device)
-        _mesh_data = coor_utils.torch3d_apply_transform_matrix(
+        _mesh_data = coor_utils_pytorch3d.torch3d_apply_transform_matrix(
             _mesh_data, _Rz_mat)
     else:
         raise ValueError(f"coor_sys '{coor_sys}' not understood.")
@@ -494,7 +256,7 @@ def pth3d_instance_perspective_projection(meshes: List[Meshes],
             [0, 0, 1, 0],
             [0, 0, 0, 1]]], dtype=torch.float32, device=device)
         meshes = [
-            coor_utils.torch3d_apply_transform_matrix(v,_Rz_mat)
+            coor_utils_pytorch3d.torch3d_apply_transform_matrix(v,_Rz_mat)
             for v in meshes]
     else:
         raise ValueError(f"coor_sys '{coor_sys}' not understood.")
@@ -523,78 +285,19 @@ def pth3d_instance_perspective_projection(meshes: List[Meshes],
     return out
 
 
-def neural_renderer_perspective_projection(mesh_data: SimpleMesh,
-                                           cam_f,
-                                           cam_p,
-                                           R=_R,
-                                           T=_T,
-                                           image=None,
-                                           orig_size=None,
-                                           device='cuda',
-                                           **kwargs):
-    """
-    TODO(low priority): add image support, add texture render support.
 
-    Args:
-        orig_size: int or None.
-            if None, orig_size will be set to image_size.
-            It's recommended to keep it as None.
-            See above "3." for explanation.
-    """
-    if isinstance(mesh_data, list):
-        raise NotImplementedError
-    elif isinstance(mesh_data, Meshes):
-        raise NotImplementedError
-
-    verts = torch.as_tensor(
-        mesh_data.vertices, device=device, dtype=torch.float32).unsqueeze(0)
-    faces = torch.as_tensor(mesh_data.faces, device=device).unsqueeze(0)
-    image_size = image.shape
-    fx, fy = cam_f
-    cx, cy = cam_p
-
-    K = torch.as_tensor([
-        [fx, 0, cx],
-        [0, fy, cy],
-        [0, 0, 1]
-        ], dtype=torch.float32, device=device)
-    K = K[None]
-    R = torch.eye(3, device=device)[None]
-    t = torch.zeros([1, 3], device=device)
-
-    if orig_size is None:
-        orig_size = image_size[0]
-    renderer = nr.Renderer(
-        image_size=image_size[0],
-        K=K,
-        R=R,
-        t=t,
-        orig_size=orig_size
-    )
-
-    img = renderer(
-        verts,
-        faces,
-        mode='silhouettes'
-    )
-    return numpize(img)
-
-
-def project_standardized(mesh_data: AnyMesh,
-                         direction='+z',
-                         image_size=200,
-                         pad=0.2,
-                         method=dict(
-                             name='pytorch3d',
-                             in_ndc=False,
-                             coor_sys='nr'
-                         ),
-                         centering=True,
-                         manual_dmax : float = None,
-                         show_axis=False,
-                         print_dmax=False,
-                         device='cuda',
-                         **kwargs) -> np.ndarray:
+def pth3d_project_standardized(mesh_data: AnyMesh,
+                               direction='+z',
+                               image_size=200,
+                               pad=0.2,
+                               in_ndc=False,
+                               coor_sys='nr',
+                               centering=True,
+                               manual_dmax : float = None,
+                               show_axis=False,
+                               print_dmax=False,
+                               device='cuda',
+                               **kwargs) -> np.ndarray:
     """
     Given any mesh(es), this function renders the zoom-in images.
     The meshes are proecessed to be in [-0.5, 0.5]^3 space,
@@ -638,36 +341,47 @@ def project_standardized(mesh_data: AnyMesh,
 
     large_z = 20  # can be arbitrary large value >> 1
     if centering:
-        _mesh_data = coor_utils.torch3d_apply_translation(
+        _mesh_data = coor_utils_pytorch3d.torch3d_apply_translation(
             _mesh_data, (-xc, -yc, -zc))
-    _mesh_data = coor_utils.torch3d_apply_scale(_mesh_data, 1./dmax)
+    _mesh_data = coor_utils_pytorch3d.torch3d_apply_scale(_mesh_data, 1./dmax)
     if direction == '+z':
         pass  # Nothing need to be changed
     elif direction == '-z':
-        _mesh_data = coor_utils.torch3d_apply_Ry(_mesh_data, 180)
+        _mesh_data = coor_utils_pytorch3d.torch3d_apply_Ry(_mesh_data, 180)
     elif direction == '+x':
         # I guarantee you it's +90, not -90
-        _mesh_data = coor_utils.torch3d_apply_Ry(_mesh_data, +90)
+        _mesh_data = coor_utils_pytorch3d.torch3d_apply_Ry(_mesh_data, +90)
     elif direction == '-x':
-        _mesh_data = coor_utils.torch3d_apply_Ry(_mesh_data, -90)
+        _mesh_data = coor_utils_pytorch3d.torch3d_apply_Ry(_mesh_data, -90)
     elif direction == '+y':
-        _mesh_data = coor_utils.torch3d_apply_Rx(_mesh_data, +90)
+        _mesh_data = coor_utils_pytorch3d.torch3d_apply_Rx(_mesh_data, +90)
     elif direction == '-y':
-        _mesh_data = coor_utils.torch3d_apply_Rx(_mesh_data, -90)
+        _mesh_data = coor_utils_pytorch3d.torch3d_apply_Rx(_mesh_data, -90)
     else:
         raise ValueError("direction not understood.")
-    _mesh_data = coor_utils.torch3d_apply_translation(
+    _mesh_data = coor_utils_pytorch3d.torch3d_apply_translation(
         _mesh_data, (0, 0, large_z))
 
     fx = fy = 2*large_z / (1+pad)
-    camera = CameraManager(
-        fx=fx, fy=fy,
-        cx=0, cy=0, img_h=image_size, img_w=image_size,
-        in_ndc=True,
-    )
-    return perspective_projection_by_camera(
-        _mesh_data,
-        camera,
-        method=method,
+    image = np.ones([image_size, image_size, 3], dtype=np.uint8) * 255
+    # camera = CameraManager(
+    #     fx=fx, fy=fy,
+    #     cx=0, cy=0, img_h=image_size, img_w=image_size,
+    #     in_ndc=True,
+    # )
+    # return perspective_projection_by_camera(
+    #     _mesh_data,
+    #     camera,
+    #     method=method,
+    #     device=device,
+    #     **kwargs)
+    return pytorch3d_perspective_projection(
+        mesh_data=_mesh_data,
+        cam_f=(fx, fy),
+        cam_p=(0, 0),
+        in_ndc=in_ndc,
+        coor_sys=coor_sys,
+        image=image,
         device=device,
-        **kwargs)
+        **kwargs
+    )  # TODO: unittest this function

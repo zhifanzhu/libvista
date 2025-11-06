@@ -58,6 +58,7 @@ class InstanceIDRenderer(nn.Module):
         faceid_to_id = faceid_to_id.int()
 
         mesh_joined = join_meshes_as_scene(meshes=meshes)
+        faceid_to_id = faceid_to_id.to(mesh_joined.device)
         fragments = self.rasterizer(mesh_joined, **kwargs)
         instance_id_mask = faceid_to_id[fragments.pix_to_face + 1]  # 0 for bg
         return instance_id_mask.view(*self.image_size)

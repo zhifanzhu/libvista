@@ -1,17 +1,22 @@
 import unittest
 
+import os
 import numpy as np
 import torch
-from libzhifan.geometry_pytorch3d import example_meshes
-from libzhifan.geometry_pytorch3d import perspective_projection_by_camera
-from libzhifan.geometry_pytorch3d import CameraManager, BatchCameraManager
+from PIL import Image
+from libzhifan.geometry import example_meshes
+from libzhifan.geometry import perspective_projection_by_camera
+from libzhifan.geometry import CameraManager, BatchCameraManager
 
 
-class CameraManagerTest(unittest.TestCase):
+output_dir = 'tests/geometry/outputs'
+expected_dir = 'tests/geometry/outputs_expected'
+
+
+class CubePytorch3dTest(unittest.TestCase):
     
-    def test_crop_and_resize(self):
+    def test_crop_and_resize_pytorch3d(self):
         H, W = 200, 400
-        image_size = (H, W)
 
         global_cam = CameraManager(
             fx=10, fy=20, cx=0, cy=0, img_h=H, img_w=W,
@@ -50,21 +55,43 @@ class CameraManagerTest(unittest.TestCase):
         """ image rendered by Local camera 1 
         x=0.5 => x_pix=100
         x=0.75 => x_pix=150 (=50 after flip)
-
         """
+
+        method = dict(
+            name='pytorch3d',
+            in_ndc=False,
+            coor_sys='pytorch3d',
+        )
 
         img_global = perspective_projection_by_camera(
             [cube_1, cube_2],
-            global_cam)
+            global_cam, method=method)
         img_1 = perspective_projection_by_camera(
             [cube_1, cube_2],
-            global_cam.crop(local_box_1))
+            global_cam.crop(local_box_1), method=method)
         img_2 = perspective_projection_by_camera(
             [cube_1, cube_2],
-            global_cam.crop(local_box_2))
+            global_cam.crop(local_box_2), method=method)
 
+        def save_img(name, rend):
+            os.makedirs(output_dir, exist_ok=True)
+            Image.fromarray(rend).save(
+                f'{output_dir}/{name}.png')
 
-    def test_batch_crop_and_resize(self):
+        save_img('pytorch3d_test_crop_and_resize_global', img_global)
+        save_img('pytorch3d_test_crop_and_resize_local_1', img_1)
+        save_img('pytorch3d_test_crop_and_resize_local_2', img_2)
+
+        def compare_to_expected(name, rend):
+            expected_path = f'{expected_dir}/{name}.png'
+            expected = np.asarray(Image.open(expected_path))
+            np.testing.assert_allclose(rend, expected, atol=2)
+
+        compare_to_expected('pytorch3d_test_crop_and_resize_global', img_global)
+        compare_to_expected('pytorch3d_test_crop_and_resize_local_1', img_1)
+        compare_to_expected('pytorch3d_test_crop_and_resize_local_2', img_2)
+
+    def test_batch_crop_and_resize_pytorch3d(self):
         H, W = 200, 400
 
         global_cam = BatchCameraManager(
@@ -109,10 +136,10 @@ class CameraManagerTest(unittest.TestCase):
             convention='pytorch3d'
         )
 
-        torch.testing.assert_allclose(
+        torch.testing.assert_close(
             local_cam_1_exp.get_K(),
             global_cam.crop(local_box_1).get_K())
-        torch.testing.assert_allclose(
+        torch.testing.assert_close(
             local_cam_2_exp.get_K(),
             global_cam.crop(local_box_2).get_K())
         

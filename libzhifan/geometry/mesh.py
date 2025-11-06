@@ -1,13 +1,25 @@
-from typing import Union
+from __future__ import annotations
+from typing import Union, List, Any, TypeAlias, TYPE_CHECKING
 
 import numpy as np
-import PIL
-import PIL.ImageDraw as ImageDraw  # needed for getrgb()
 import torch
 from libzhifan.numeric import numpize
-from pytorch3d.renderer import TexturesVertex
-from pytorch3d.structures import Meshes
 from trimesh import Trimesh
+
+from . import _HAS_PYTORCH3D
+
+# This block is ONLY read by static type checkers.
+if TYPE_CHECKING:
+    from pytorch3d.structures import Meshes
+    from pytorch3d.renderer import TexturesVertex
+
+if _HAS_PYTORCH3D:
+    from pytorch3d.renderer import TexturesVertex
+    from pytorch3d.structures import Meshes
+else:
+    TexturesVertex = Any  # runtime placeholder so annotations still evaluate
+    Meshes = Any  # runtime placeholder so annotations still evaluate
+
 
 _COLORS = dict(
     light_blue=(0.65, 0.74, 0.86),
@@ -53,8 +65,9 @@ class SimpleMesh(Trimesh):
             verts: (V, 3) float32
             faces: (F, 3) int
             process : bool
-            if True, Nan and Inf values will be removed
-            immediately and vertices will be merged
+                if True, Nan and Inf values will be removed
+                immediately and vertices will be merged
+            device: 'cpu' or 'cuda'. Used for self.synced_mesh
         """
         verts = numpize(_drop_dim0(verts))
         faces = numpize(_drop_dim0(faces))
@@ -62,20 +75,20 @@ class SimpleMesh(Trimesh):
 
         if isinstance(tex_color, str) and tex_color in _COLORS:
             self.tex_color = _COLORS[tex_color]
-        # if isinstance(tex_color, str):
-        #     self.tex_color = PIL.ImageColor.getrgb(tex_color)  # tuple
         elif len(tex_color) >= 3 and (0.0 <= tex_color[0] <= 1.0):
             self.tex_color = tex_color
         else:
             raise ValueError(f"tex_color {tex_color} not understood.")
 
-        face_colors = np.ones([len(faces), len(self.tex_color)]) * \
-            self.tex_color * 255
+        # face_colors = np.ones([len(faces), len(self.tex_color)]) * \
+        #     self.tex_color * 255
+        vertex_colors = (np.ones([len(verts), len(self.tex_color)]) * \
+            self.tex_color * 255).astype(np.uint8)
         super().__init__(
             vertices=verts,
             faces=faces,
             process=process,
-            face_colors=face_colors)
+            vertex_colors=vertex_colors)
 
     def as_trimesh(self):
         return super().copy()
@@ -86,11 +99,14 @@ class SimpleMesh(Trimesh):
 
     @property
     def synced_mesh(self):
+        if not _HAS_PYTORCH3D:
+            raise ImportError(
+                "The '.synced_mesh' property requires PyTorch3D. "
+                "Please install `pytorch3d`.")
+
         device = self.device
         verts = torch.as_tensor(self.vertices, device=device, dtype=torch.float32)
         faces = torch.as_tensor(self.faces, device=device)
-        # verts_rgb = torch.ones_like(verts) * \
-        #     torch.as_tensor(self.tex_color[:3], device=device)
         verts_rgb = torch.as_tensor(
             self.visual.vertex_colors[:, :3],
             dtype=torch.float32, device=device) / 255.
@@ -135,3 +151,6 @@ class SimpleMesh(Trimesh):
         out = self.copy()
         out.apply_translation_(translation)
         return out
+
+
+AnyMesh: TypeAlias = Union[SimpleMesh, "Meshes", List["Meshes"], List[SimpleMesh]]

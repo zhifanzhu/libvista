@@ -17,7 +17,6 @@ class CheckingTest(unittest.TestCase):
         except ValueError as e:
             print("Get correct message: ", e)
 
-        check_shape_equal(a, a)
         b = torch.ones([1])
         try:
             check_shape(a, b)

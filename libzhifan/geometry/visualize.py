@@ -1,27 +1,34 @@
+from __future__ import annotations
 from functools import singledispatch
+from typing import TYPE_CHECKING, Any
 import numpy as np
-from typing import Union
 import trimesh
 from trimesh.scene import Scene
 from trimesh.transformations import rotation_matrix
 from trimesh.points import PointCloud
-from pytorch3d.structures import Meshes
 from libzhifan.numeric import numpize
-from libzhifan.geometry_pytorch3d import SimpleMesh
+from libzhifan.geometry import SimpleMesh
+
+# For type checkers only (no runtime import)
+if TYPE_CHECKING:
+    from pytorch3d.structures import Meshes as Pytorch3dMeshes  # noqa: F401
+
+from . import _HAS_PYTORCH3D
+if _HAS_PYTORCH3D:
+    from pytorch3d.structures import Meshes as Pytorch3dMeshes
+else:
+    Pytorch3dMeshes = None
 
 
 _Rx = rotation_matrix(np.pi, [1, 0, 0])  # rotate pi around x-axis
 _Ry = rotation_matrix(np.pi, [0, 1, 0])  # rotate pi around y-axis
 
-
+@singledispatch
+def to_trimesh(mesh_in: object) -> trimesh.Trimesh:
+    raise TypeError(f"Unsupported mesh type: {type(mesh_in)!r}")
 @singledispatch
 def _to_trimesh(mesh_in: trimesh.Trimesh) -> trimesh.Trimesh:
     return mesh_in
-@_to_trimesh.register
-def _dummy(mesh_in: Meshes):
-    return trimesh.Trimesh(
-            vertices=numpize(mesh_in.verts_packed()),
-            faces=numpize(mesh_in.faces_packed()))
 @_to_trimesh.register
 def _dummy(mesh_in: SimpleMesh):
     m = trimesh.Trimesh(
@@ -29,6 +36,12 @@ def _dummy(mesh_in: SimpleMesh):
             faces=mesh_in.faces)
     m.visual = mesh_in.visual
     return m
+if Pytorch3dMeshes is not None:
+    @_to_trimesh.register
+    def _dummy(mesh_in: Pytorch3dMeshes):
+        return trimesh.Trimesh(
+                vertices=numpize(mesh_in.verts_packed()),
+                faces=numpize(mesh_in.faces_packed()))
 
 
 def color_faces(mesh, face_inds, color):
