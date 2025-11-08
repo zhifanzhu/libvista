@@ -55,4 +55,4 @@ Note that currently `pytest` still requires `pytorch3d` to be installed.
 
 Best practice is to specify a commit-hash or tag:
 
-`pip install git+https://github.com/zhifanzhu/libvista.git@v0.2-2025`
+`pip install git+https://github.com/zhifanzhu/libvista.git@v0.2.0-2025`
