@@ -4,9 +4,9 @@ from collections.abc import Sized
 
 import numpy as np
 import torch
-from libzhifan.numeric import numpize
 from trimesh import Trimesh
 
+from libvista.numeric import numpize
 from . import _HAS_PYTORCH3D
 
 # This block is ONLY read by static type checkers.

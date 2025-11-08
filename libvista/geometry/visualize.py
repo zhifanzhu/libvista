@@ -6,8 +6,9 @@ import trimesh
 from trimesh.scene import Scene
 from trimesh.transformations import rotation_matrix
 from trimesh.points import PointCloud
-from libzhifan.numeric import numpize
-from libzhifan.geometry import SimpleMesh
+
+from libvista.numeric import numpize
+from libvista.geometry import SimpleMesh
 
 # For type checkers only (no runtime import)
 if TYPE_CHECKING:

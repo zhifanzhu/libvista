@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import torch
 
-from libzhifan import quick_inspect
+from libvista import quick_inspect
 
 
 class QuickInspectTest(unittest.TestCase):

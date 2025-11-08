@@ -11,7 +11,7 @@ from PIL import Image
 import numpy as np
 import tqdm
 
-from libzhifan.geometry import projection, SimpleMesh, CameraManager
+from libvista.geometry import projection, SimpleMesh, CameraManager
 
 mesh_path = 'tests/examples/P01_01_42273_right_hand.obj'
 img_path = 'tests/examples/P01_01_42273.png'

@@ -14,10 +14,10 @@ from pytorch3d.structures import Meshes
 from pytorch3d.renderer import TexturesVertex
 from pytorch3d.structures import join_meshes_as_scene
 
-from libzhifan import epylab
-from libzhifan.geometry import example_meshes
-from libzhifan.geometry import projection
-from libzhifan.geometry import SimpleMesh, InstanceIDRenderer
+from libvista import epylab
+from libvista.geometry import example_meshes
+from libvista.geometry import projection
+from libvista.geometry import SimpleMesh, InstanceIDRenderer
 
 
 class Shapes:

@@ -3,7 +3,7 @@ import numpy as np
 from open3d.visualization import rendering
 import PIL
 
-from libzhifan.geometry import CameraManager, SimpleMesh
+from libvista.geometry import CameraManager, SimpleMesh
 
 
 """ Implementing open3d equivalence of projection.py """

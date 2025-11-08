@@ -2,11 +2,10 @@ import unittest
 
 import os
 import numpy as np
-import torch
 from PIL import Image
-from libzhifan.geometry import example_meshes
-from libzhifan.geometry import perspective_projection_by_camera
-from libzhifan.geometry import CameraManager, BatchCameraManager
+from libvista.geometry import example_meshes
+from libvista.geometry import perspective_projection_by_camera
+from libvista.geometry import CameraManager, BatchCameraManager
 
 
 output_dir = 'tests/geometry/outputs'

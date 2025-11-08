@@ -1,8 +1,8 @@
 import unittest
 import trimesh 
 
-from libzhifan import geometry
-from libzhifan.geometry import SimpleMesh
+from libvista import geometry
+from libvista.geometry import SimpleMesh
 
 
 class MeshTest(unittest.TestCase):

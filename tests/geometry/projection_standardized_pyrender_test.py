@@ -3,7 +3,7 @@ import unittest
 import os
 import trimesh
 import numpy as np
-from libzhifan.geometry import projection, SimpleMesh, example_meshes
+from libvista.geometry import projection, SimpleMesh, example_meshes
 from PIL import Image
 
 mesh_path = 'tests/examples/P01_01_42273_right_hand.obj'

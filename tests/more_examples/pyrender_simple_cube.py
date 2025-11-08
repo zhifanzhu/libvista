@@ -9,9 +9,9 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import os
 
-from libzhifan.geometry import pyrender_call
-from libzhifan.geometry import CameraManager, SimpleMesh
-from libzhifan.geometry.example_meshes import canonical_cuboids
+from libvista.geometry import pyrender_call
+from libvista.geometry import CameraManager, SimpleMesh
+from libvista.geometry.example_meshes import canonical_cuboids
 
 # set EGL is not set by environment variables
 os.environ['PYOPENGL_PLATFORM'] = os.environ.get('PYOPENGL_PLATFORM', 'egl')

@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import torch
 
-from libzhifan.numeric import *
+from libvista.numeric import *
 
 
 class CheckingTest(unittest.TestCase):

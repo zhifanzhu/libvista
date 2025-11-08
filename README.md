@@ -1,4 +1,6 @@
-# LibZhifan
+# LibVista
+
+Previously named libzhifan, `libvista` is a collection of utility tools for 3D computer vision.
 
 # Doc
 
@@ -16,4 +18,4 @@ modules:
 
 # Install
 
-`pip install git+https://github.com/zhifanzhu/libzhifan.git`
+`pip install git+https://github.com/zhifanzhu/libvista.git`

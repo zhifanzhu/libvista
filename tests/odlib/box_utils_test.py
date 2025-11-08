@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import torch
 
-from libzhifan.odlib import box_utils
+from libvista.odlib import box_utils
 
 
 class BoxUitlsTest(unittest.TestCase):

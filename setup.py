@@ -4,11 +4,11 @@ from setuptools import find_packages, setup
 # To install library to Python site-packages run "python setup.py build_ext install"
 
 setup(
-    name='libzhifan',
+    name='libvista',
     author="Zhifan Zhu",
     author_email="zhifan.zhu@bristol.ac.uk",
     packages=find_packages(exclude=("tests",)),
-    # package_dir = {'libzhifan': 'libzhifan'},
+    # package_dir = {'libvista': 'libvista'},
     install_requires=[
         'numpy>=1.16.3,<2.0',
         'trimesh>=3.10.2',

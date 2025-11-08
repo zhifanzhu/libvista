@@ -3,7 +3,7 @@
 
 import numpy as np
 
-from libzhifan.numeric import nptify, numpize
+from libvista.numeric import nptify, numpize
 
 
 def nptify_wrapper(func):
