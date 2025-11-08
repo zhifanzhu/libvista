@@ -6,6 +6,7 @@ from setuptools import find_packages, setup
 setup(
     name='libvista',
     author="Zhifan Zhu",
+    version="0.2.0",
     author_email="zhifan.zhu@bristol.ac.uk",
     packages=find_packages(exclude=("tests",)),
     # package_dir = {'libvista': 'libvista'},

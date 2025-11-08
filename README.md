@@ -45,6 +45,12 @@ modules:
 - *numeric*: Utilities for numeric libraries (numpy, pytorch)
 - *cvtools*: video / frame header and subtitles. Mask overlay.
 
+# Unit Tests
+
+`pytest`
+
+Note that currently `pytest` still requires `pytorch3d` to be installed.
+
 # Install
 
 Best practice is to specify a commit-hash or tag:
