@@ -1,5 +1,9 @@
 from __future__ import annotations
-from typing import Union, List, Any, TypeAlias, TYPE_CHECKING
+from typing import Union, List, Any, TYPE_CHECKING
+try:  # Python 3.10+
+    from typing import TypeAlias
+except ImportError:  # Python < 3.10
+    from typing_extensions import TypeAlias
 from collections.abc import Sized
 
 import numpy as np

@@ -1,19 +1,19 @@
 """ Create the renderer on first use and reuse it. Clean up automatically on exit. """
 
 import atexit
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Optional
 import numpy as np
 from numpy.typing import NDArray
 import pyrender
 
 # Cache renderers by (width, height) so we can call with different sizes
-_RENDERERS: dict[tuple[int, int], pyrender.OffscreenRenderer] = {}
+_RENDERERS: Dict[Tuple[int, int], pyrender.OffscreenRenderer] = {}
 
 DEFAULT_FLAGS = pyrender.RenderFlags.RGBA \
     | pyrender.RenderFlags.SHADOWS_DIRECTIONAL
 
 
-def _get_renderer(size: tuple[int, int]) -> pyrender.OffscreenRenderer:
+def _get_renderer(size: Tuple[int, int]) -> pyrender.OffscreenRenderer:
     if size not in _RENDERERS:
         _RENDERERS[size] = pyrender.OffscreenRenderer(*size)
     return _RENDERERS[size]
@@ -30,12 +30,12 @@ def _cleanup_renderers():
 
 
 def pyrender_call(meshes: List[pyrender.Mesh], 
-                  cam: tuple[pyrender.Camera, np.ndarray],
-                  lights: list[tuple[pyrender.Light, np.ndarray]]|None=None,
-                  size: tuple[int, int]=(400, 400),
+                  cam: Tuple[pyrender.Camera, np.ndarray],
+                  lights: Optional[List[Tuple[pyrender.Light, np.ndarray]]] = None,
+                  size: Tuple[int, int]=(400, 400),
                   flags: pyrender.RenderFlags = DEFAULT_FLAGS,
                   ambient_light=False,
-                  ) -> tuple[NDArray, NDArray]:
+                  ) -> Tuple[NDArray, NDArray]:
     """
     Render a single frame. You don't manage the OffscreenRenderer.
 
