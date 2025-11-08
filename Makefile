@@ -1,3 +1,5 @@
+test:
+	pytest 
 
 clean:
-	rm -r tests/geometry_pytorch3d/outputs || true
+	rm -r tests/geometry/outputs || true

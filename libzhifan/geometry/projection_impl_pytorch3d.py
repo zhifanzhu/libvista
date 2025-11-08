@@ -18,7 +18,6 @@ from . import coor_utils_pytorch3d
 from .instance_id_rendering import InstanceIDRenderer
 
 
-
 _R = torch.eye(3)
 _T = torch.zeros(3)
 
@@ -31,8 +30,47 @@ def _to_th_mesh(m: AnyMesh) -> Meshes:
         return m
     elif isinstance(m, SimpleMesh):
         return m.synced_mesh
+    elif isinstance(m, trimesh.Trimesh):
+        return SimpleMesh.from_trimesh(m).synced_mesh
     else:
         raise ValueError(f"type {type(m)} not understood.")
+
+
+def _pth3d_coordinate_transform(meshes: List[Meshes],
+                                coor_sys: str,
+                                device='cuda') -> List[Meshes]:
+    """
+    Args:
+        mesh_data: AnyMesh
+        coor_sys: str, 
+            one of {'pytorch3d', 'neural_renderer'/'nr', 'pyrender'}
+    """
+    if coor_sys == 'pytorch3d':
+        pass  # Nothing
+    elif coor_sys == 'neural_renderer' or coor_sys == 'nr':
+        # flip XY is the same as Rotation around Z
+        _Rz_mat = torch.as_tensor([[
+            [-1, 0, 0, 0],
+            [0, -1, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1]]], dtype=torch.float32, device=device)
+        meshes = [
+            coor_utils_pytorch3d.torch3d_apply_transform_matrix(v,_Rz_mat)
+            for v in meshes]
+    elif coor_sys in ['pyrender']:
+        # Rotate around Y by 180 degrees
+        _Ry_mat = torch.as_tensor([[
+            [-1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, -1, 0],
+            [0, 0, 0, 1]]], dtype=torch.float32, device=device)
+        meshes = [
+            coor_utils_pytorch3d.torch3d_apply_transform_matrix(v,_Ry_mat)
+            for v in meshes]
+    else:
+        raise ValueError(f"coor_sys '{coor_sys}' not understood.")
+
+    return meshes
 
 
 def pytorch3d_perspective_projection(mesh_data: AnyMesh,
@@ -71,19 +109,8 @@ def pytorch3d_perspective_projection(mesh_data: AnyMesh,
     _mesh_data = _to_th_mesh(mesh_data)
     _mesh_data = _mesh_data.to(device)
 
-    if coor_sys == 'pytorch3d':
-        pass  # Nothing
-    elif coor_sys == 'neural_renderer' or coor_sys == 'nr':
-        # flip XY is the same as Rotation around Z
-        _Rz_mat = torch.as_tensor([[
-            [-1, 0, 0, 0],
-            [0, -1, 0, 0],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]]], dtype=torch.float32, device=device)
-        _mesh_data = coor_utils_pytorch3d.torch3d_apply_transform_matrix(
-            _mesh_data, _Rz_mat)
-    else:
-        raise ValueError(f"coor_sys '{coor_sys}' not understood.")
+    _mesh_data = _pth3d_coordinate_transform(
+        [_mesh_data], coor_sys, device=device)[0]
 
     R = torch.unsqueeze(torch.as_tensor(R), 0)
     T = torch.unsqueeze(torch.as_tensor(T), 0)
@@ -152,19 +179,8 @@ def pth3d_silhouette_perspective_projection(mesh_data: AnyMesh,
     _mesh_data = _to_th_mesh(mesh_data)
     _mesh_data = _mesh_data.to(device)
 
-    if coor_sys == 'pytorch3d':
-        pass  # Nothing
-    elif coor_sys == 'neural_renderer' or coor_sys == 'nr':
-        # flip XY is the same as Rotation around Z
-        _Rz_mat = torch.as_tensor([[
-            [-1, 0, 0, 0],
-            [0, -1, 0, 0],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]]], dtype=torch.float32, device=device)
-        _mesh_data = coor_utils_pytorch3d.torch3d_apply_transform_matrix(
-            _mesh_data, _Rz_mat)
-    else:
-        raise ValueError(f"coor_sys '{coor_sys}' not understood.")
+    _mesh_data = _pth3d_coordinate_transform(
+        [_mesh_data], coor_sys, device=device)[0]
 
     R = torch.unsqueeze(torch.as_tensor(R), 0)
     T = torch.unsqueeze(torch.as_tensor(T), 0)
@@ -246,20 +262,8 @@ def pth3d_instance_perspective_projection(meshes: List[Meshes],
     assert type(meshes) == list, "Must be list of meshes"
     meshes = [_to_th_mesh(v).to(device) for v in meshes]
 
-    if coor_sys == 'pytorch3d':
-        pass  # Nothing
-    elif coor_sys == 'neural_renderer' or coor_sys == 'nr':
-        # flip XY is the same as Rotation around Z
-        _Rz_mat = torch.as_tensor([[
-            [-1, 0, 0, 0],
-            [0, -1, 0, 0],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]]], dtype=torch.float32, device=device)
-        meshes = [
-            coor_utils_pytorch3d.torch3d_apply_transform_matrix(v,_Rz_mat)
-            for v in meshes]
-    else:
-        raise ValueError(f"coor_sys '{coor_sys}' not understood.")
+    meshes = _pth3d_coordinate_transform(
+        meshes, coor_sys, device=device)
 
     R = torch.unsqueeze(torch.as_tensor(R), 0)
     T = torch.unsqueeze(torch.as_tensor(T), 0)
@@ -290,8 +294,7 @@ def pth3d_project_standardized(mesh_data: AnyMesh,
                                direction='+z',
                                image_size=200,
                                pad=0.2,
-                               in_ndc=False,
-                               coor_sys='nr',
+                               coor_sys='pytorch3d',
                                centering=True,
                                manual_dmax : float = None,
                                show_axis=False,
@@ -299,6 +302,8 @@ def pth3d_project_standardized(mesh_data: AnyMesh,
                                device='cuda',
                                **kwargs) -> np.ndarray:
     """
+    Note: It seem that the direction is w.r.t 'nr' coor sys.
+
     Given any mesh(es), this function renders the zoom-in images.
     The meshes are proecessed to be in [-0.5, 0.5]^3 space,
     then a weak-perspective camera is applied.
@@ -308,6 +313,7 @@ def pth3d_project_standardized(mesh_data: AnyMesh,
         manual_dmax: set dmax manually
         print_dmax: This helps determine manual_dmax
         centering: if True, look at (xc, yc, zc); otherwise, look at (0, 0, 0)
+        show_axis: if True, show axis of *the original mesh*
         **kwargs: other kwargs passed to projection function
 
     Returns:
@@ -326,7 +332,11 @@ def pth3d_project_standardized(mesh_data: AnyMesh,
 
     if show_axis:
         device = _mesh_data.device
-        _axis = trimesh.creation.axis(origin_size=0.01, axis_radius=0.004, axis_length=dmax * 0.6)
+        origin_size = kwargs.get('axis_origin_size', 0.01)
+        axis_radius = kwargs.get('axis_radius', 0.004)
+        axis_length = dmax * 0.6
+        _axis = trimesh.creation.axis(
+            origin_size=origin_size, axis_radius=axis_radius, axis_length=axis_length)
 
         _ax_verts = torch.as_tensor(_axis.vertices, device=device, dtype=torch.float32)
         _ax_faces = torch.as_tensor(_axis.faces, device=device)
@@ -349,10 +359,9 @@ def pth3d_project_standardized(mesh_data: AnyMesh,
     elif direction == '-z':
         _mesh_data = coor_utils_pytorch3d.torch3d_apply_Ry(_mesh_data, 180)
     elif direction == '+x':
-        # I guarantee you it's +90, not -90
-        _mesh_data = coor_utils_pytorch3d.torch3d_apply_Ry(_mesh_data, +90)
-    elif direction == '-x':
         _mesh_data = coor_utils_pytorch3d.torch3d_apply_Ry(_mesh_data, -90)
+    elif direction == '-x':
+        _mesh_data = coor_utils_pytorch3d.torch3d_apply_Ry(_mesh_data, +90)
     elif direction == '+y':
         _mesh_data = coor_utils_pytorch3d.torch3d_apply_Rx(_mesh_data, +90)
     elif direction == '-y':
@@ -363,25 +372,17 @@ def pth3d_project_standardized(mesh_data: AnyMesh,
         _mesh_data, (0, 0, large_z))
 
     fx = fy = 2*large_z / (1+pad)
-    image = np.ones([image_size, image_size, 3], dtype=np.uint8) * 255
-    # camera = CameraManager(
-    #     fx=fx, fy=fy,
-    #     cx=0, cy=0, img_h=image_size, img_w=image_size,
-    #     in_ndc=True,
-    # )
-    # return perspective_projection_by_camera(
-    #     _mesh_data,
-    #     camera,
-    #     method=method,
-    #     device=device,
-    #     **kwargs)
+
+    # The callee required image value range from 0 to 1
+    image = torch.ones([image_size, image_size, 3], dtype=torch.float32)
+
     return pytorch3d_perspective_projection(
         mesh_data=_mesh_data,
         cam_f=(fx, fy),
         cam_p=(0, 0),
-        in_ndc=in_ndc,
+        in_ndc=True,
         coor_sys=coor_sys,
         image=image,
         device=device,
         **kwargs
-    )  # TODO: unittest this function
+    )

@@ -11,13 +11,13 @@ from libzhifan.geometry import SimpleMesh
 
 # For type checkers only (no runtime import)
 if TYPE_CHECKING:
-    from pytorch3d.structures import Meshes as Pytorch3dMeshes  # noqa: F401
+    from pytorch3d.structures import Meshes as P3DMeshes  # noqa: F401
 
 from . import _HAS_PYTORCH3D
 if _HAS_PYTORCH3D:
-    from pytorch3d.structures import Meshes as Pytorch3dMeshes
+    from pytorch3d.structures import Meshes as P3DMeshes
 else:
-    Pytorch3dMeshes = None
+    P3DMeshes = None
 
 
 _Rx = rotation_matrix(np.pi, [1, 0, 0])  # rotate pi around x-axis
@@ -36,9 +36,9 @@ def _dummy(mesh_in: SimpleMesh):
             faces=mesh_in.faces)
     m.visual = mesh_in.visual
     return m
-if Pytorch3dMeshes is not None:
+if _HAS_PYTORCH3D:
     @_to_trimesh.register
-    def _dummy(mesh_in: Pytorch3dMeshes):
+    def _dummy(mesh_in: P3DMeshes):
         return trimesh.Trimesh(
                 vertices=numpize(mesh_in.verts_packed()),
                 faces=numpize(mesh_in.faces_packed()))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Union, List, Any, TypeAlias, TYPE_CHECKING
+from collections.abc import Sized
 
 import numpy as np
 import torch
@@ -59,6 +60,7 @@ class SimpleMesh(Trimesh):
                  faces: Union[np.ndarray, torch.Tensor],
                  process=False,
                  tex_color='light_blue',
+                 vertex_colors_to_keep=None,
                  device='cuda'):
         """
         Args:
@@ -75,27 +77,47 @@ class SimpleMesh(Trimesh):
 
         if isinstance(tex_color, str) and tex_color in _COLORS:
             self.tex_color = _COLORS[tex_color]
-        elif len(tex_color) >= 3 and (0.0 <= tex_color[0] <= 1.0):
+        elif isinstance(tex_color, Sized) and len(tex_color) >= 3 \
+            and (0.0 <= tex_color[0] <= 1.0):
             self.tex_color = tex_color
+        elif tex_color is None and vertex_colors_to_keep is not None:
+            # will not throw error in this case
+            pass
         else:
             raise ValueError(f"tex_color {tex_color} not understood.")
 
-        # face_colors = np.ones([len(faces), len(self.tex_color)]) * \
-        #     self.tex_color * 255
-        vertex_colors = (np.ones([len(verts), len(self.tex_color)]) * \
-            self.tex_color * 255).astype(np.uint8)
+        if vertex_colors_to_keep is not None:
+            vertex_colors = vertex_colors_to_keep
+        else:
+            vertex_colors = (np.ones([len(verts), len(self.tex_color)]) * \
+                self.tex_color * 255).astype(np.uint8)
+
         super().__init__(
             vertices=verts,
             faces=faces,
             process=process,
             vertex_colors=vertex_colors)
 
+    @classmethod
+    def from_trimesh(cls, mesh: Trimesh) -> SimpleMesh:
+        """ This preserves vertex colors and/or face colors if any.
+        """
+        vertex_colors = mesh.visual.vertex_colors if mesh.visual else None
+        return cls(
+            verts=mesh.vertices,
+            faces=mesh.faces,
+            tex_color=None,
+            vertex_colors_to_keep=vertex_colors
+        )
+
     def as_trimesh(self):
         return super().copy()
 
     def copy(self):
         copied = super().copy()
-        return SimpleMesh(copied.vertices, copied.faces, tex_color=self.tex_color)
+        return SimpleMesh(
+            copied.vertices, copied.faces, tex_color=None,
+            vertex_colors_to_keep=copied.visual.vertex_colors)
 
     @property
     def synced_mesh(self):
@@ -153,4 +175,6 @@ class SimpleMesh(Trimesh):
         return out
 
 
-AnyMesh: TypeAlias = Union[SimpleMesh, "Meshes", List["Meshes"], List[SimpleMesh]]
+AnyMesh: TypeAlias = Union[
+    SimpleMesh, "Meshes", Trimesh,
+    List[SimpleMesh], List["Meshes"], List[Trimesh]]

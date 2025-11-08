@@ -8,7 +8,9 @@ from . import _HAS_NR, _HAS_PYTORCH3D
 from .mesh import AnyMesh
 from .camera_manager import CameraManager
 from .projection_impl_naive import naive_perspective_projection
-from .projection_impl_pyrender import pr_perspective_projection
+from .projection_impl_pyrender import (
+    pr_perspective_projection, pr_project_standardized
+)
 
 if _HAS_NR:
     from .projection_impl_neural_renderer import neural_renderer_perspective_projection
@@ -177,6 +179,7 @@ def perspective_projection(mesh_data: AnyMesh,
             **method,
         )
     elif method_name == 'pyrender':
+        image = np.asarray(image, dtype=np.uint8) / 255.  # for api consistency
         return pr_perspective_projection(
             mesh_data=mesh_data, cam_f=cam_f, cam_p=cam_p, image=image,
             **method,
@@ -248,7 +251,6 @@ def project_standardized(mesh_data: AnyMesh,
                          pad=0.2,
                          method=dict(
                              name='pytorch3d',
-                             in_ndc=False,
                              coor_sys='nr'
                          ),
                          centering=True,
@@ -263,6 +265,9 @@ def project_standardized(mesh_data: AnyMesh,
     then a weak-perspective camera is applied.
 
     Args:
+        direction: the camera will be looking at this direction
+            e.g. '+z' means camera is looking at infinity along +z axis.
+                in other words, '-z' is facing the camera.
         pad: the fraction to be padded around rendered image.
         manual_dmax: set dmax manually
         print_dmax: This helps determine manual_dmax
@@ -272,7 +277,10 @@ def project_standardized(mesh_data: AnyMesh,
     Returns:
         (H, W, 3)
     """
-    method_name = method.pop('name')
+    method_name = method.get('name', 'pyrender')
+    assert 'in_ndc' not in method, \
+        "in_ndc should not be set in method for project_standardized."
+
     if method_name == 'pytorch3d':
         assert _HAS_PYTORCH3D, "Please install pytorch3d to use this function."
         return pth3d_project_standardized(
@@ -286,7 +294,19 @@ def project_standardized(mesh_data: AnyMesh,
             show_axis=show_axis,
             print_dmax=print_dmax,
             device=device,
+            **kwargs
+        )
+    elif method_name == 'pyrender':
+        return pr_project_standardized(
+            mesh_data=mesh_data,
+            direction=direction,
+            image_size=image_size,
+            pad=pad,
             **method,
+            centering=centering,
+            manual_dmax=manual_dmax,
+            show_axis=show_axis,
+            print_dmax=print_dmax,
             **kwargs
         )
     else:

@@ -179,6 +179,81 @@ def scale(points, x, y, z):
     return (points - center) * scale_factor + center
 
 
+# def rotate_with_mat(points, R):
+#     """
+#     Args:
+#         points: (n, 3)
+#         R: (3, 3)
+#     Returns:
+#         (n, 3)
+#     """
+#     assert len(points.shape) == 2 and points.shape[1] == 3
+#     out_type = nptify(points)
+#     center = points.mean(0)
+#     return ((points - center) @ out_type(R).T) + center
+
+
+def rotmat_Rx(degree: int, to_homo=False):
+    theta = degree / 180 * np.pi
+    c, s = np.cos(theta), np.sin(theta)
+    if to_homo:
+        Rx_mat = np.eye(4)
+        Rx_mat[:3, :3] = np.float32([
+            [1, 0, 0],
+            [0, c, -s],
+            [0, s, c]])
+    else:
+        Rx_mat = np.float32([
+            [1, 0, 0],
+            [0, c, -s],
+            [0, s, c]])
+    return Rx_mat
+
+def rotmat_Ry(degree: int, to_homo=False):
+    theta = degree / 180 * np.pi
+    c, s = np.cos(theta), np.sin(theta)
+    if to_homo:
+        Ry_mat = np.eye(4)
+        Ry_mat[:3, :3] = np.float32([
+            [c, 0, s],
+            [0, 1, 0],
+            [-s, 0, c]])
+    else:
+        Ry_mat = np.float32([
+            [c, 0, s],
+            [0, 1, 0],
+            [-s, 0, c]])
+    return Ry_mat
+
+def rotmat_Rz(degree: int, to_homo=False):
+    theta = degree / 180 * np.pi
+    c, s = np.cos(theta), np.sin(theta)
+    if to_homo:
+        Rz_mat = np.eye(4)
+        Rz_mat[:3, :3] = np.float32([
+            [c, -s, 0],
+            [s, c, 0],
+            [0, 0, 1]])
+    else:
+        Rz_mat = np.float32([
+            [c, -s, 0],
+            [s, c, 0],
+            [0, 0, 1]])
+    return Rz_mat
+
+def rotate_Rx(points, degree: int):
+    Rx_mat = rotmat_Rx(degree, to_homo=True)
+    return transform_nx3(Rx_mat, points)
+
+def rotate_Ry(points, degree: int):
+    Ry_mat = rotmat_Ry(degree, to_homo=True)
+    return transform_nx3(Ry_mat, points)
+
+def rotate_Rz(points, degree: int):
+    Rz_mat = rotmat_Rz(degree, to_homo=True)
+    return transform_nx3(Rz_mat, points)
+
+
 
 """ Camera """
 

@@ -10,11 +10,11 @@ setup(
     packages=find_packages(exclude=("tests",)),
     # package_dir = {'libzhifan': 'libzhifan'},
     install_requires=[
-        'numpy>=1.16.3',
-        'matplotlib>=2.1.0',
-        'pillow>=6.0.0',
+        'numpy>=1.16.3,<2.0',
         'trimesh>=3.10.2',
+        'matplotlib>=2.1.0',
+        'pyrender>=0.1.45',
+        'pillow>=6.0.0',
         # 'pytorch3d==0.6.2', suggested
     ],
-    version='0.1',
 )
