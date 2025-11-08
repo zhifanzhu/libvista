@@ -47,4 +47,6 @@ modules:
 
 # Install
 
-`pip install git+https://github.com/zhifanzhu/libvista.git`
+Best practice is to specify a commit-hash or tag:
+
+`pip install git+https://github.com/zhifanzhu/libvista.git@v0.2-2025`
